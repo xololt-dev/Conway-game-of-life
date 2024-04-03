@@ -3,6 +3,7 @@
 #include "matrix.hpp"
 #include "task.hpp"
 
+#include <ncurses.h>
 #include <atomic>
 #include <condition_variable>
 #include <iostream>
@@ -20,7 +21,7 @@ public:
     void resume();
     void restart();
 
-    void workerFunction();
+    void workerFunction(const int a_id);
 
     void print() {
         std::tuple<short, short> dims = currentGen->dimensions();
