@@ -22,6 +22,7 @@ public:
     void restart();
 
     void workerFunction(const int a_id);
+    void inputFunction(std::atomic_char& a_char);
 
     void print() {
         std::tuple<short, short> dims = currentGen->dimensions();

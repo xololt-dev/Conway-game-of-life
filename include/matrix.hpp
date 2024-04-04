@@ -21,7 +21,7 @@ public:
         data.resize(a_rows * a_columns);
     }
     ~Matrix() {
-        std::cout << "Matrix destroyed!\n";
+        //std::cout << "Matrix destroyed!\n";
     }
 
     reference operator()(size_type const a_row, size_type const a_column) {
