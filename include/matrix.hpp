@@ -1,8 +1,8 @@
 #pragma once
 
+#include <sched.h>
 #include <tuple>
 #include <vector>
-#include <iostream>
 
 // https://codereview.stackexchange.com/questions/142815/generic-matrix-type-in-c
 template <class T>
@@ -15,13 +15,19 @@ public:
     void load(const std::vector<T>& a_data) {
         data = a_data;
     }
-
-    Matrix(size_type const a_rows, size_type const a_columns ) :
-        rows(a_rows), columns(a_columns) {
-        data.resize(a_rows * a_columns);
+    std::vector<T> board() {
+        return data;
     }
-    ~Matrix() {
-        //std::cout << "Matrix destroyed!\n";
+
+    Matrix(size_type const a_rows, size_type const a_columns) :
+        rows(a_rows), columns(a_columns) {
+        data.resize(a_rows * a_columns, 0);
+    }
+    ~Matrix() {}
+    Matrix(Matrix& a_matrix) {
+        data = a_matrix.data;
+        rows = a_matrix.rows;
+        columns = a_matrix.columns;
     }
 
     reference operator()(size_type const a_row, size_type const a_column) {

@@ -6,11 +6,9 @@
 #include <ncurses.h>
 #include <atomic>
 #include <condition_variable>
-#include <iostream>
 #include <memory>
 #include <mutex>
 #include <queue>
-#include <tuple>
 #include <vector>
 #include <thread>
 
@@ -24,23 +22,16 @@ public:
     void workerFunction(const int a_id);
     void inputFunction(std::atomic_char& a_char);
 
-    void print() {
-        std::tuple<short, short> dims = currentGen->dimensions();
-
-        std::cout << "Conway's game of life\nTick: " << tick << 
-        "\nDimensions: " << std::get<0>(dims) << " " << std::get<1>(dims) << std::endl;
-    }
-
     Game(short const a_rows) {
-        currentGen = std::make_unique<Matrix<short>>(a_rows, a_rows);
-        nextGen = std::make_unique<Matrix<short>>(a_rows, a_rows);
+        currentGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
+        nextGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
 
         hintPreAllocate();
     }
 
     Game(short const a_rows, short const a_columns) {
-        currentGen = std::make_unique<Matrix<short>>(a_rows, a_columns);
-        nextGen = std::make_unique<Matrix<short>>(a_rows, a_columns);
+        currentGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
+        nextGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
 
         hintPreAllocate();
     }
@@ -50,7 +41,7 @@ public:
         unsigned int numThreads = std::thread::hardware_concurrency();
 
         if (numThreads)
-            workers.reserve(numThreads);
+            workers.reserve(numThreads);        
     }
 
 private:
@@ -60,9 +51,9 @@ private:
 
     // Tasks for threads
     std::mutex tasks_mutex;
-    std::condition_variable cv;
+    std::condition_variable cv_tasks;
     std::queue<Task> tasks;
-    bool queueInUse = false;
+    std::atomic_bool queueInUse = ATOMIC_VAR_INIT(false);
     // Other threads
     std::atomic_bool stopThreads = ATOMIC_VAR_INIT(false);
     std::atomic_bool pauseThreads = ATOMIC_VAR_INIT(false);
