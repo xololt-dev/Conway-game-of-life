@@ -50,12 +50,13 @@ private:
     unsigned long long tick = 0;
 
     // Tasks for threads
-    std::mutex tasks_mutex;
-    std::condition_variable cv_tasks;
+    std::mutex tasksMutex;
+    std::condition_variable cvTasks;
     std::queue<Task> tasks;
     std::atomic_bool queueInUse = ATOMIC_VAR_INIT(false);
     // Other threads
     std::atomic_bool stopThreads = ATOMIC_VAR_INIT(false);
     std::atomic_bool pauseThreads = ATOMIC_VAR_INIT(false);
     std::vector<std::thread> workers;
+    std::vector<short> workDone;
 };

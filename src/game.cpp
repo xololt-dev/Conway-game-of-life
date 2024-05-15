@@ -20,7 +20,8 @@ void Game::start() {
     // Setup
     pauseThreads = true;
 
-    // Detaching thread(s) 
+    // Detaching thread(s)
+    workDone.push_back(0);
     workers.push_back(std::thread(&Game::workerFunction, this, workers.size()));
     workers.back().detach();
 
@@ -73,6 +74,8 @@ void Game::start() {
     std::thread inputThread = std::thread(&Game::inputFunction, this, std::ref(input));
     inputThread.detach();
 
+    int currentTasksAmount = 0;
+
     // Loop
     while (true) {
         pauseThreads = false;
@@ -85,6 +88,7 @@ void Game::start() {
         else if (input == '+' or input == '=') {
             pauseThreads = true;
             
+            workDone.push_back(0);
             workers.push_back(std::thread(&Game::workerFunction, this, workers.size()));
             workers.back().detach();
             
@@ -154,63 +158,74 @@ void Game::start() {
             input = ' ';
         }
 
-        std::unique_lock<std::mutex> uniqueLock(tasks_mutex);
-        cv_tasks.wait(uniqueLock, [this]{ return !queueInUse; });
-        queueInUse = true;
+        std::unique_lock<std::mutex> uniqueLock(tasksMutex);
+        cvTasks.wait(uniqueLock, [this]{ return !queueInUse; });
 
-        if (tasks.empty()) {
-            pauseThreads = true;
+        if (!queueInUse) {
+            queueInUse = true;
 
-            mvwprintw(stats, 8, 4, "%s %f", "Timer: ",  
-            double(std::chrono::duration<double>(std::chrono::system_clock::now() - start).count()));
-
-            start = std::chrono::system_clock::now();
-
-            // Swap 
-            currentGen->load(nextGen->board());
-
-            // Assign new tasks
-            std::tuple<short, short> coords = currentGen->dimensions();
-            unsigned short id = 0;
-
-            for (short x = 0; x < std::get<0>(coords); x += x_part) {
-                for (short y = 0; y < std::get<1>(coords); y += y_part) {
-                    tasks.push(Task(currentGen, 
-                        nextGen, std::array<short, 4>{x, y, 
-                        static_cast<short>(x + x_part - 1), static_cast<short>(y + y_part - 1)},
-                        id++));
+            bool canContinue = true;
+            for (short& done : workDone) {
+                if (done == 0) {
+                    canContinue = false;
+                    break;
                 }
             }
 
-            // Display
-            setlocale(LC_ALL, "");
-            for (int x = 0; x < std::get<0>(coords); x++) {
-                for (int y = 0; y < std::get<1>(coords); y++) {
-                    mvwprintw(board, x + 1, y + 1, "%s", 
-                        (*currentGen.get())(x, y) ? "@" : " ");
-                }
-            }
+            if (tasks.empty() && canContinue) {
+                pauseThreads = true;
 
-            tick++;
+                mvwprintw(stats, 9, 4, "%s %f", "Timer: ",  
+                double(std::chrono::duration<double>(std::chrono::system_clock::now() - start).count()));
+
+                start = std::chrono::system_clock::now();
+
+                // Swap 
+                currentGen->load(nextGen->board());
+
+                // Assign new tasks
+                std::tuple<short, short> coords = currentGen->dimensions();
+                unsigned short id = 0;
+
+                for (short x = 0; x < std::get<0>(coords); x += x_part) {
+                    for (short y = 0; y < std::get<1>(coords); y += y_part) {
+                        tasks.push(Task(currentGen, 
+                            nextGen, std::array<short, 4>{x, y, 
+                            static_cast<short>(x + x_part - 1), static_cast<short>(y + y_part - 1)},
+                            id++));
+                    }
+                }
+
+                // Display
+                setlocale(LC_ALL, "");
+                for (int x = 0; x < std::get<0>(coords); x++) {
+                    for (int y = 0; y < std::get<1>(coords); y++) {
+                        mvwprintw(board, x + 1, y + 1, "%s", 
+                            (*currentGen.get())(x, y) ? "@" : " ");
+                    }
+                }
+
+                tick++;
+            }
+            else currentTasksAmount = tasks.size();
+
+            queueInUse = false;
         }
 
         // Refresh display data
         mvwprintw(stats, 2, 4, "%s %llu", "Tick: ", tick);
         mvwprintw(stats, 3, 4, "%s %zu", "Workers: ", workers.size());
         mvwprintw(stats, 4, 4, "%s %d", "Tasks: ", tasksAmount);
-        mvwprintw(stats, 5, 4, "%s %d", "x_part: ", x_part);
-        mvwprintw(stats, 6, 4, "%s %d", "y_part: ", y_part);
-        mvwprintw(stats, 7, 4, "%s %d", "Pause: ", int(pauseThreads));
+        mvwprintw(stats, 5, 4, "%s %d", "Current tasks: ", currentTasksAmount);
+        mvwprintw(stats, 6, 4, "%s %d", "x_part: ", x_part);
+        mvwprintw(stats, 7, 4, "%s %d", "y_part: ", y_part);
+        mvwprintw(stats, 8, 4, "%s %d", "Pause: ", int(pauseThreads));
+
+        uniqueLock.unlock();
+        cvTasks.notify_all();
 
         wrefresh(board);
         wrefresh(stats);
-
-        uniqueLock.unlock();
-        queueInUse = false;
-        cv_tasks.notify_all();
-
-        // std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     stopThreads = true;
@@ -223,30 +238,37 @@ void Game::start() {
 void Game::workerFunction(const int a_id) {
     while (!stopThreads) {
         while (!pauseThreads) {
+            std::unique_lock<std::mutex> uniqueLock(tasksMutex);
             // W8 for our turn
-            std::unique_lock<std::mutex> uniqueLock(tasks_mutex);
-            cv_tasks.wait(uniqueLock, [this]{ return !queueInUse; });
+            cvTasks.wait(uniqueLock, [this]{ return !queueInUse; });
 
-            queueInUse = true;
             Task task;
             bool taskExists = false;
 
-            if (!tasks.empty()) {
-                task = tasks.front();
-                taskExists = true;
-/*
-                std::cout << "Worker #" << a_id << "\n" 
-                << std::get<0>(task->coordinates) << " "
-                << std::get<1>(task->coordinates) << " "
-                << std::get<2>(task->coordinates) << " "
-                << std::get<3>(task->coordinates) << std::endl;
-*/
-                tasks.pop();
-            }
+            if (!queueInUse) {
+                queueInUse = true;
+                
+                if (!tasks.empty()) {
+                    workDone[a_id] = 0;
 
+                    task = tasks.front();
+                    taskExists = true;
+    /*
+                    std::cout << "Worker #" << a_id << "\n" 
+                    << std::get<0>(task->coordinates) << " "
+                    << std::get<1>(task->coordinates) << " "
+                    << std::get<2>(task->coordinates) << " "
+                    << std::get<3>(task->coordinates) << std::endl;
+    */
+                    tasks.pop();
+                }
+                else workDone[a_id] = 1;
+
+                queueInUse = false;
+            }
+            
             uniqueLock.unlock();
-            queueInUse = false;
-            cv_tasks.notify_all();
+            cvTasks.notify_one();
 
             // Do work here - seperate function?
             if (taskExists) {
