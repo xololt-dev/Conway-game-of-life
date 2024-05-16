@@ -1,14 +1,12 @@
 #pragma once
 
 #include "matrix.hpp"
-#include "task.hpp"
+#include "data.hpp"
+#include "sync.hpp"
 
 #include <ncurses.h>
 #include <atomic>
-#include <condition_variable>
 #include <memory>
-#include <mutex>
-#include <queue>
 #include <vector>
 #include <thread>
 
@@ -23,15 +21,15 @@ public:
     void inputFunction(std::atomic_char& a_char);
 
     Game(short const a_rows) {
-        currentGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
-        nextGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
+        data.currentGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
+        data.nextGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
 
         hintPreAllocate();
     }
 
     Game(short const a_rows, short const a_columns) {
-        currentGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
-        nextGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
+        data.currentGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
+        data.nextGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
 
         hintPreAllocate();
     }
@@ -45,18 +43,8 @@ public:
     }
 
 private:
-    std::shared_ptr<Matrix<short>> currentGen,
-                                   nextGen;
-    unsigned long long tick = 0;
+    Data data;
+    Sync sync;
 
-    // Tasks for threads
-    std::mutex tasksMutex;
-    std::condition_variable cvTasks;
-    std::queue<Task> tasks;
-    std::atomic_bool queueInUse = ATOMIC_VAR_INIT(false);
-    // Other threads
-    std::atomic_bool stopThreads = ATOMIC_VAR_INIT(false);
-    std::atomic_bool pauseThreads = ATOMIC_VAR_INIT(false);
     std::vector<std::thread> workers;
-    std::vector<short> workDone;
 };

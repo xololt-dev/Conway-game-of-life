@@ -13,29 +13,30 @@
 #include <vector>
 
 void Game::start() {
-    (*currentGen.get())(3, 3) = 1;
-    (*currentGen.get())(3, 4) = 1;
-    (*currentGen.get())(3, 5) = 1;
+    (*data.currentGen.get())(3, 3) = 1;
+    (*data.currentGen.get())(3, 4) = 1;
+    (*data.currentGen.get())(3, 5) = 1;
+    // (*data.currentGen.get())(4, 4) = 1;
 
     // Setup
-    pauseThreads = true;
+    sync.pauseThreads = true;
 
     // Detaching thread(s)
-    workDone.push_back(0);
+    sync.workDone.push_back(0);
     workers.push_back(std::thread(&Game::workerFunction, this, workers.size()));
     workers.back().detach();
 
     // Task creation
     int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
 
-    short x_part = std::get<0>(currentGen->dimensions());
-    short y_part = std::get<1>(currentGen->dimensions());
+    short x_part = std::get<0>(data.currentGen->dimensions());
+    short y_part = std::get<1>(data.currentGen->dimensions());
 
-    std::tuple<short, short> coords = currentGen->dimensions();
+    std::tuple<short, short> coords = data.currentGen->dimensions();
     for (short x = 0; x < std::get<0>(coords); x += x_part) {
         for (short y = 0; y < std::get<1>(coords); y += y_part) {
-            tasks.push(Task(currentGen, 
-                nextGen, std::array<short, 4>{x, y, 
+            data.tasks.push(Task(data.currentGen, 
+                data.nextGen, std::array<short, 4>{x, y, 
                 static_cast<short>(x + x_part - 1), static_cast<short>(y + y_part - 1)},
                 0));
         }
@@ -59,7 +60,7 @@ void Game::start() {
     mvwprintw(board, 0, 1, "Conway's game of life");
     
     mvwprintw(stats, 0, 1, "Statistics");
-    mvwprintw(stats, 2, 4, "%s %llu", "Tick: ", tick);
+    mvwprintw(stats, 2, 4, "%s %llu", "Tick: ", data.tick);
     mvwprintw(stats, 3, 4, "%s %zu", "Workers: ", workers.size());
     mvwprintw(stats, 4, 4, "%s %d", "Tasks: ", tasksAmount);
 
@@ -78,7 +79,7 @@ void Game::start() {
 
     // Loop
     while (true) {
-        pauseThreads = false;
+        sync.pauseThreads = false;
 
         // Quit
         if (input == 'q') {
@@ -86,16 +87,16 @@ void Game::start() {
         }
         // Add thread
         else if (input == '+' or input == '=') {
-            pauseThreads = true;
+            sync.pauseThreads = true;
             
-            workDone.push_back(0);
+            sync.workDone.push_back(0);
             workers.push_back(std::thread(&Game::workerFunction, this, workers.size()));
             workers.back().detach();
             
             tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
 
-            x_part = std::get<0>(currentGen->dimensions());
-            y_part = std::get<1>(currentGen->dimensions());
+            x_part = std::get<0>(data.currentGen->dimensions());
+            y_part = std::get<1>(data.currentGen->dimensions());
 
             if (tasksAmount > 1) {
                 bool x_bool = true;
@@ -151,29 +152,29 @@ void Game::start() {
         }
         */
         else if (input == 'p') {
-            pauseThreads = true;
+            sync.pauseThreads = true;
         }
         else if (input == 'r') {
-            pauseThreads = false;
+            sync.pauseThreads = false;
             input = ' ';
         }
 
-        std::unique_lock<std::mutex> uniqueLock(tasksMutex);
-        cvTasks.wait(uniqueLock, [this]{ return !queueInUse; });
+        std::unique_lock<std::mutex> uniqueLock(sync.tasksMutex);
+        sync.cvTasks.wait(uniqueLock, [this]{ return !sync.queueInUse; });
 
-        if (!queueInUse) {
-            queueInUse = true;
+        if (!sync.queueInUse) {
+            sync.queueInUse = true;
 
             bool canContinue = true;
-            for (short& done : workDone) {
+            for (short& done : sync.workDone) {
                 if (done == 0) {
                     canContinue = false;
                     break;
                 }
             }
 
-            if (tasks.empty() && canContinue) {
-                pauseThreads = true;
+            if (data.tasks.empty() && canContinue) {
+                sync.pauseThreads = true;
 
                 mvwprintw(stats, 9, 4, "%s %f", "Timer: ",  
                 double(std::chrono::duration<double>(std::chrono::system_clock::now() - start).count()));
@@ -181,16 +182,16 @@ void Game::start() {
                 start = std::chrono::system_clock::now();
 
                 // Swap 
-                currentGen->load(nextGen->board());
+                data.currentGen->load(data.nextGen->board());
 
                 // Assign new tasks
-                std::tuple<short, short> coords = currentGen->dimensions();
+                std::tuple<short, short> coords = data.currentGen->dimensions();
                 unsigned short id = 0;
 
                 for (short x = 0; x < std::get<0>(coords); x += x_part) {
                     for (short y = 0; y < std::get<1>(coords); y += y_part) {
-                        tasks.push(Task(currentGen, 
-                            nextGen, std::array<short, 4>{x, y, 
+                        data.tasks.push(Task(data.currentGen, 
+                            data.nextGen, std::array<short, 4>{x, y, 
                             static_cast<short>(x + x_part - 1), static_cast<short>(y + y_part - 1)},
                             id++));
                     }
@@ -201,74 +202,68 @@ void Game::start() {
                 for (int x = 0; x < std::get<0>(coords); x++) {
                     for (int y = 0; y < std::get<1>(coords); y++) {
                         mvwprintw(board, x + 1, y + 1, "%s", 
-                            (*currentGen.get())(x, y) ? "@" : " ");
+                            (*data.currentGen.get())(x, y) ? "@" : " ");
                     }
                 }
 
-                tick++;
+                data.tick++;
             }
-            else currentTasksAmount = tasks.size();
+            else currentTasksAmount = data.tasks.size();
 
-            queueInUse = false;
+            sync.queueInUse = false;
         }
 
         // Refresh display data
-        mvwprintw(stats, 2, 4, "%s %llu", "Tick: ", tick);
+        mvwprintw(stats, 2, 4, "%s %llu", "Tick: ", data.tick);
         mvwprintw(stats, 3, 4, "%s %zu", "Workers: ", workers.size());
         mvwprintw(stats, 4, 4, "%s %d", "Tasks: ", tasksAmount);
         mvwprintw(stats, 5, 4, "%s %d", "Current tasks: ", currentTasksAmount);
         mvwprintw(stats, 6, 4, "%s %d", "x_part: ", x_part);
         mvwprintw(stats, 7, 4, "%s %d", "y_part: ", y_part);
-        mvwprintw(stats, 8, 4, "%s %d", "Pause: ", int(pauseThreads));
+        mvwprintw(stats, 8, 4, "%s %d", "Pause: ", int(sync.pauseThreads));
 
         uniqueLock.unlock();
-        cvTasks.notify_all();
+        sync.cvTasks.notify_all();
 
         wrefresh(board);
         wrefresh(stats);
     }
 
-    stopThreads = true;
-    pauseThreads = true;
+    sync.stopThreads = true;
+    sync.pauseThreads = true;
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     endwin();
 }
 
 void Game::workerFunction(const int a_id) {
-    while (!stopThreads) {
-        while (!pauseThreads) {
-            std::unique_lock<std::mutex> uniqueLock(tasksMutex);
+    while (!sync.stopThreads) {
+        while (!sync.pauseThreads) {
+            std::unique_lock<std::mutex> uniqueLock(sync.tasksMutex);
             // W8 for our turn
-            cvTasks.wait(uniqueLock, [this]{ return !queueInUse; });
+            sync.cvTasks.wait(uniqueLock, [this]{ return !sync.queueInUse; });
 
             Task task;
             bool taskExists = false;
 
-            if (!queueInUse) {
-                queueInUse = true;
+            if (!sync.queueInUse) {
+                sync.queueInUse = true;
                 
-                if (!tasks.empty()) {
-                    workDone[a_id] = 0;
+                if (!data.tasks.empty()) {
+                    sync.workDone[a_id] = 0;
 
-                    task = tasks.front();
+                    task = data.tasks.front();
                     taskExists = true;
-    /*
-                    std::cout << "Worker #" << a_id << "\n" 
-                    << std::get<0>(task->coordinates) << " "
-                    << std::get<1>(task->coordinates) << " "
-                    << std::get<2>(task->coordinates) << " "
-                    << std::get<3>(task->coordinates) << std::endl;
-    */
-                    tasks.pop();
+                    
+                    data.tasks.pop();
                 }
-                else workDone[a_id] = 1;
+                else sync.workDone[a_id] = 1;
 
-                queueInUse = false;
+                sync.queueInUse = false;
             }
             
             uniqueLock.unlock();
-            cvTasks.notify_one();
+            sync.cvTasks.notify_one();
 
             // Do work here - seperate function?
             if (taskExists) {
@@ -294,30 +289,30 @@ void Game::workerFunction(const int a_id) {
                             bottom = 0;
 
                         // Count alive neighbours
-                        short aliveCount = (*currentGen.get())(left, top);
-                        aliveCount += (*currentGen.get())(x, top);
-                        aliveCount += (*currentGen.get())(right, top);
+                        short aliveCount = (*data.currentGen.get())(left, top);
+                        aliveCount += (*data.currentGen.get())(x, top);
+                        aliveCount += (*data.currentGen.get())(right, top);
 
-                        aliveCount += (*currentGen.get())(left, y);
-                        aliveCount += (*currentGen.get())(right, y);
+                        aliveCount += (*data.currentGen.get())(left, y);
+                        aliveCount += (*data.currentGen.get())(right, y);
 
-                        aliveCount += (*currentGen.get())(left, bottom);
-                        aliveCount += (*currentGen.get())(x, bottom);
-                        aliveCount += (*currentGen.get())(right, bottom);
+                        aliveCount += (*data.currentGen.get())(left, bottom);
+                        aliveCount += (*data.currentGen.get())(x, bottom);
+                        aliveCount += (*data.currentGen.get())(right, bottom);
 
                         // If alive
-                        if ((*currentGen.get())(x, y) == 1) {
+                        if ((*data.currentGen.get())(x, y) == 1) {
                             if (aliveCount < 2)
-                                (*nextGen.get())(x,y) = 0;
+                                (*data.nextGen.get())(x,y) = 0;
                             else if (aliveCount > 3)
-                                (*nextGen.get())(x,y) = 0;
+                                (*data.nextGen.get())(x,y) = 0;
                             else
-                                (*nextGen.get())(x,y) = 1;
+                                (*data.nextGen.get())(x,y) = 1;
                         }
                         // If dead
                         else {
                             if (aliveCount == 3)
-                                (*nextGen.get())(x,y) = 1;
+                                (*data.nextGen.get())(x,y) = 1;
                         }
                     }
                 }
@@ -330,6 +325,6 @@ void Game::workerFunction(const int a_id) {
 }
 
 void Game::inputFunction(std::atomic_char& a_char) {
-    while (!stopThreads)
+    while (!sync.stopThreads)
         a_char = getch();
 }
