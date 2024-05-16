@@ -15,4 +15,6 @@ struct Sync {
     std::atomic_bool pauseThreads = ATOMIC_VAR_INIT(false);
 
     std::vector<short> workDone;
+
+    Sync() {}
 };

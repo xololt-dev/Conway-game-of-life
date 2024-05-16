@@ -1,35 +1,35 @@
 #include "worker.hpp"
 
 #include <thread>
-/*
-void Worker::run() {
-    while (!stopThreads) {
-        while (!pauseThreads) {
-            std::unique_lock<std::mutex> uniqueLock(*tasksMutex);
+
+void Worker::task() {
+    while (!sync->stopThreads) {
+        while (!sync->pauseThreads) {
+            std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
             // W8 for our turn
-            cvTasks->wait(uniqueLock, [this]{ return !queueInUse; });
+            sync->cvTasks.wait(uniqueLock, [this]{ return !sync->queueInUse; });
 
             Task task;
             bool taskExists = false;
 
-            if (!queueInUse) {
-                queueInUse = true;
+            if (!sync->queueInUse) {
+                sync->queueInUse = true;
                 
-                if (!tasks.empty()) {
-                    workDone[a_id] = 0;
+                if (!data->tasks.empty()) {
+                    sync->workDone[id] = 0;
 
-                    task = tasks.front();
+                    task = data->tasks.front();
                     taskExists = true;
                     
-                    tasks.pop();
+                    data->tasks.pop();
                 }
-                else workDone[a_id] = 1;
+                else sync->workDone[id] = 1;
 
-                queueInUse = false;
+                sync->queueInUse = false;
             }
             
             uniqueLock.unlock();
-            cvTasks->notify_one();
+            sync->cvTasks.notify_one();
 
             // Do work here - seperate function?
             if (taskExists) {
@@ -55,30 +55,30 @@ void Worker::run() {
                             bottom = 0;
 
                         // Count alive neighbours
-                        short aliveCount = (*currentGen.get())(left, top);
-                        aliveCount += (*currentGen.get())(x, top);
-                        aliveCount += (*currentGen.get())(right, top);
+                        short aliveCount = (*data->currentGen.get())(left, top);
+                        aliveCount += (*data->currentGen.get())(x, top);
+                        aliveCount += (*data->currentGen.get())(right, top);
 
-                        aliveCount += (*currentGen.get())(left, y);
-                        aliveCount += (*currentGen.get())(right, y);
+                        aliveCount += (*data->currentGen.get())(left, y);
+                        aliveCount += (*data->currentGen.get())(right, y);
 
-                        aliveCount += (*currentGen.get())(left, bottom);
-                        aliveCount += (*currentGen.get())(x, bottom);
-                        aliveCount += (*currentGen.get())(right, bottom);
+                        aliveCount += (*data->currentGen.get())(left, bottom);
+                        aliveCount += (*data->currentGen.get())(x, bottom);
+                        aliveCount += (*data->currentGen.get())(right, bottom);
 
                         // If alive
-                        if ((*currentGen.get())(x, y) == 1) {
+                        if ((*data->currentGen.get())(x, y) == 1) {
                             if (aliveCount < 2)
-                                (*nextGen.get())(x,y) = 0;
+                                (*data->nextGen.get())(x,y) = 0;
                             else if (aliveCount > 3)
-                                (*nextGen.get())(x,y) = 0;
+                                (*data->nextGen.get())(x,y) = 0;
                             else
-                                (*nextGen.get())(x,y) = 1;
+                                (*data->nextGen.get())(x,y) = 1;
                         }
                         // If dead
                         else {
                             if (aliveCount == 3)
-                                (*nextGen.get())(x,y) = 1;
+                                (*data->nextGen.get())(x,y) = 1;
                         }
                     }
                 }
@@ -89,4 +89,3 @@ void Worker::run() {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }
-*/

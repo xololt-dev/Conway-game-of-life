@@ -2,11 +2,13 @@
 
 #include "matrix.hpp"
 #include "data.hpp"
+#include "worker.hpp"
 #include "sync.hpp"
 
 #include <ncurses.h>
 #include <atomic>
 #include <memory>
+#include <tuple>
 #include <vector>
 #include <thread>
 
@@ -17,19 +19,28 @@ public:
     void resume();
     void restart();
 
-    void workerFunction(const int a_id);
     void inputFunction(std::atomic_char& a_char);
+    void addWorker();
+    void deleteWorker();
+
+    std::tuple<int, short, short> getTasksSize();
 
     Game(short const a_rows) {
-        data.currentGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
-        data.nextGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
+        data = std::make_shared<Data>();
+        sync = std::make_shared<Sync>();
+
+        data->currentGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
+        data->nextGen = std::make_shared<Matrix<short>>(a_rows, a_rows);
 
         hintPreAllocate();
     }
 
     Game(short const a_rows, short const a_columns) {
-        data.currentGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
-        data.nextGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
+        data = std::make_shared<Data>();
+        sync = std::make_shared<Sync>();
+
+        data->currentGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
+        data->nextGen = std::make_shared<Matrix<short>>(a_rows, a_columns);
 
         hintPreAllocate();
     }
@@ -43,8 +54,8 @@ public:
     }
 
 private:
-    Data data;
-    Sync sync;
+    std::shared_ptr<Data> data;
+    std::shared_ptr<Sync> sync;
 
-    std::vector<std::thread> workers;
+    std::vector<Worker> workers;
 };
