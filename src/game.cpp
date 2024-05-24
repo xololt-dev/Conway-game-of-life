@@ -28,44 +28,11 @@ void Game::start() {
     workers.back().detach();
     
     // Task creation
-    int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
-
     std::tuple<short, short> coords = data->currentGen->dimensions();
     short x_part = std::get<0>(coords);
     short y_part = std::get<1>(coords);
 
-    for (short x = 0; x < std::get<0>(coords); x += x_part) {
-        for (short y = 0; y < std::get<1>(coords); y += y_part) {
-            data->tasks.push(Task(data->currentGen, 
-                data->nextGen, std::array<short, 4>{x, y, 
-                static_cast<short>(x + x_part - 1), static_cast<short>(y + y_part - 1)},
-                0));
-        }
-    }
-
-    // Ncurses init
-    initscr();
-    noecho();
-    
-    // Window creation
-    WINDOW* board = newwin(std::get<0>(coords) + 1, std::get<1>(coords) + 1, 0, 0);
-    WINDOW* stats = newwin(std::get<1>(coords), 25, 0, std::get<0>(coords) + 1);
-    
-    refresh();
-
-    box(board, 0, 0);
-    box(stats, 0, 0);
-    refresh();
-    setlocale(LC_ALL, "");
-
-    // move and print in window
-    mvwprintw(board, 0, 1, "Conway's game of life");
-    
-    mvwprintw(stats, 0, 1, "Statistics");
-
-    // refreshing the window
-    wrefresh(board);
-    wrefresh(stats);
+    createNewTasks(coords, x_part, y_part);
 
     std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
 
@@ -74,9 +41,21 @@ void Game::start() {
     std::thread inputThread = std::thread(&Game::inputFunction, this, std::ref(input));
     inputThread.detach();
 
-    int currentTasksAmount = 0;
     bool addThread = false;
     bool deleteThread = false;
+
+    int currentTasksAmount = 0;
+    double lastIteration = 0.0;
+    int workersAmount = workers.size();
+    int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
+
+    graphics->setData(data);
+    graphics->setWorkers(workersAmount);
+    graphics->setTasks(tasksAmount);
+    graphics->setXPart(x_part);
+    graphics->setYPart(y_part);
+    //graphics->setPaused(sync->pauseThreads);
+    graphics->setTimer(lastIteration);
 
     // Loop
     while (true) {
@@ -141,6 +120,8 @@ void Game::start() {
                     tasksAmount = std::get<0>(tempTuple);
                     x_part = std::get<1>(tempTuple);
                     y_part = std::get<2>(tempTuple);
+
+                    workersAmount = workers.size();
                 }
                 else if (addThread) {
                     addWorker();
@@ -149,12 +130,13 @@ void Game::start() {
                     tasksAmount = std::get<0>(tempTuple);
                     x_part = std::get<1>(tempTuple);
                     y_part = std::get<2>(tempTuple);
+                    
+                    workersAmount = workers.size();
                 }
                 deleteThread = false;
                 addThread = false;
 
-                mvwprintw(stats, 9, 4, "%s %f", "Timer: ",  
-                double(std::chrono::duration<double>(std::chrono::system_clock::now() - start).count()));
+                lastIteration = double(std::chrono::duration<double>(std::chrono::system_clock::now() - start).count());
 
                 start = std::chrono::system_clock::now();
 
@@ -162,24 +144,10 @@ void Game::start() {
                 data->currentGen->load(data->nextGen->board());
 
                 // Assign new tasks
-                unsigned short id = 0;
-
-                for (short x = 0; x < std::get<0>(coords); x += x_part) {
-                    for (short y = 0; y < std::get<1>(coords); y += y_part) {
-                        data->tasks.push(Task(data->currentGen, 
-                            data->nextGen, std::array<short, 4>{x, y, 
-                            static_cast<short>(x + x_part - 1), static_cast<short>(y + y_part - 1)},
-                            id++));
-                    }
-                }
+                createNewTasks(coords, x_part, y_part);
 
                 // Display
-                for (int x = 0; x < std::get<0>(coords); x++) {
-                    for (int y = 0; y < std::get<1>(coords); y++) {
-                        mvwprintw(board, x + 1, y + 1, "%s", 
-                            (*data->currentGen.get())(x, y) ? "@" : " ");
-                    }
-                }
+                graphics->renderBoard();
 
                 data->tick++;
             }
@@ -189,30 +157,15 @@ void Game::start() {
         }
 
         // Refresh display data
-        mvwprintw(stats, 2, 4, "%s %llu", "Tick: ", data->tick);
-        mvwprintw(stats, 3, 13, "%s", "   ");
-        mvwprintw(stats, 3, 4, "%s %zu", "Workers: ", workers.size());
-        mvwprintw(stats, 4, 11, "%s", "   ");
-        mvwprintw(stats, 4, 4, "%s %d", "Tasks: ", tasksAmount);
-        // mvwprintw(stats, 5, 4, "%s %d", "Current tasks: ", currentTasksAmount);
-        mvwprintw(stats, 6, 12, "%s", "   ");
-        mvwprintw(stats, 6, 4, "%s %d", "x_part: ", x_part);
-        mvwprintw(stats, 7, 12, "%s", "   ");
-        mvwprintw(stats, 7, 4, "%s %d", "y_part: ", y_part);
-        mvwprintw(stats, 8, 4, "%s %d", "Pause: ", int(sync->pauseThreads));
+        graphics->renderStats();
 
         uniqueLock.unlock();
         sync->cvTasks.notify_all();
-
-        wrefresh(board);
-        wrefresh(stats);
     }
 
     sync->stopThreads = true;
     sync->pauseThreads = true;
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    endwin();
 }
 
 void Game::addWorker() {
@@ -252,6 +205,19 @@ std::tuple<int, short, short> Game::getTasksSize() {
     }
 
     return std::make_tuple(tasksAmount, x_part, y_part);
+}
+
+void Game::createNewTasks(const std::tuple<short, short>& a_coords, const short& a_xPart, const short& a_yPart) {
+    unsigned short id = 0;
+
+    for (short x = 0; x < std::get<0>(a_coords); x += a_xPart) {
+        for (short y = 0; y < std::get<1>(a_coords); y += a_yPart) {
+            data->tasks.push(Task(data->currentGen, 
+                data->nextGen, std::array<short, 4>{x, y, 
+                static_cast<short>(x + a_xPart - 1), static_cast<short>(y + a_yPart - 1)},
+                id++));
+        }
+    }
 }
 
 void Game::inputFunction(std::atomic_char& a_char) {
