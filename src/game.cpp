@@ -30,10 +30,10 @@ void Game::start() {
     // Task creation
     int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
 
-    short x_part = std::get<0>(data->currentGen->dimensions());
-    short y_part = std::get<1>(data->currentGen->dimensions());
-
     std::tuple<short, short> coords = data->currentGen->dimensions();
+    short x_part = std::get<0>(coords);
+    short y_part = std::get<1>(coords);
+
     for (short x = 0; x < std::get<0>(coords); x += x_part) {
         for (short y = 0; y < std::get<1>(coords); y += y_part) {
             data->tasks.push(Task(data->currentGen, 
@@ -56,6 +56,7 @@ void Game::start() {
     box(board, 0, 0);
     box(stats, 0, 0);
     refresh();
+    setlocale(LC_ALL, "");
 
     // move and print in window
     mvwprintw(board, 0, 1, "Conway's game of life");
@@ -103,9 +104,11 @@ void Game::start() {
             
             input = ' ';
         }
+        // Pause threads
         else if (input == 'p') {
             sync->pauseThreads = true;
         }
+        // Resume threads
         else if (input == 'r') {
             sync->pauseThreads = false;
             input = ' ';
@@ -117,15 +120,18 @@ void Game::start() {
         if (!sync->queueInUse) {
             sync->queueInUse = true;
 
-            bool canContinue = true;
+            bool canContinue = false;
             for (short& done : sync->workDone) {
-                if (done == 0) {
+                if (done == true) 
+                    canContinue = true;
+                
+                else {
                     canContinue = false;
                     break;
                 }
             }
 
-            if (data->tasks.empty() && canContinue) {
+            if (data->tasks.empty() && canContinue && !sync->pauseThreads) {
                 sync->pauseThreads = true;
 
                 if (deleteThread) {
@@ -156,7 +162,6 @@ void Game::start() {
                 data->currentGen->load(data->nextGen->board());
 
                 // Assign new tasks
-                std::tuple<short, short> coords = data->currentGen->dimensions();
                 unsigned short id = 0;
 
                 for (short x = 0; x < std::get<0>(coords); x += x_part) {
@@ -169,7 +174,6 @@ void Game::start() {
                 }
 
                 // Display
-                setlocale(LC_ALL, "");
                 for (int x = 0; x < std::get<0>(coords); x++) {
                     for (int y = 0; y < std::get<1>(coords); y++) {
                         mvwprintw(board, x + 1, y + 1, "%s", 

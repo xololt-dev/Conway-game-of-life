@@ -19,6 +19,7 @@ public:
     }
 
 private:
+    // technically should be const int, but then seems to be more sensitive to worker deletions/insertions?
     int id;
     std::thread thread;
 
