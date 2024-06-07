@@ -16,9 +16,7 @@
 class Game {
 public:
     void start();
-    void pause();
-    void resume();
-    void restart();
+    void loadGeneration(std::atomic_char& a_input);
 
     void inputFunction(std::atomic_char& a_char);
     void addWorker();

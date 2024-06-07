@@ -9,6 +9,7 @@ struct Sync {
     // Tasks for threads
     std::mutex tasksMutex;
     std::condition_variable cvTasks;
+    std::condition_variable noTasks;
     std::atomic_bool queueInUse = ATOMIC_VAR_INIT(false);
     // Other threads
     std::atomic_bool stopThreads = ATOMIC_VAR_INIT(false);

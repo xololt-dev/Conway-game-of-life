@@ -8,6 +8,7 @@ void Worker::task() {
             std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
             // W8 for our turn
             sync->cvTasks.wait(uniqueLock, [this]{ return !sync->queueInUse; });
+            // sync->cvTasks.wait(uniqueLock);
 
             Task task;
             bool taskExists = false;
@@ -23,12 +24,16 @@ void Worker::task() {
                     
                     data->tasks.pop();
                 }
-                else sync->workDone[id] = 1;
+                else {
+                    sync->workDone[id] = 1;
+                    sync->queueInUse = false;
+                    sync->noTasks.notify_one();
+                    continue;
+                }
 
                 sync->queueInUse = false;
             }
             
-            uniqueLock.unlock();
             sync->cvTasks.notify_one();
 
             // Do work here - seperate function?

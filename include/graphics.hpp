@@ -9,8 +9,14 @@
 
 class Graphics {
 public:
+    void fullGameRender();
     void renderStats();
+    void renderLesserStats();
     void renderBoard();
+    void renderLoadBoard();
+
+    void clearAll() { clear(); wrefresh(board);
+        wrefresh(stats); }
 
     Graphics(const std::tuple<short, short> a_coords) : 
         coords(a_coords) {
@@ -19,8 +25,10 @@ public:
         noecho();
         setlocale(LC_ALL, "");
 
-        board = newwin(std::get<0>(a_coords) + 1, std::get<1>(a_coords) + 1, 0, 0);
-        stats = newwin(std::get<1>(a_coords), 25, 0, std::get<0>(a_coords) + 1);
+        /*
+
+        board = newwin(std::get<0>(a_coords) + 2, std::get<1>(a_coords) + 2, 0, 0);
+        stats = newwin(std::get<0>(a_coords) + 2, 25, 0, std::get<0>(a_coords) + 2);
 
         refresh();
 
@@ -35,6 +43,7 @@ public:
         // refreshing the window
         wrefresh(board);
         wrefresh(stats);
+        */
     }
 
     ~Graphics() {
@@ -48,15 +57,17 @@ public:
     void setYPart(short& a_part) { y_part = &a_part; };
     //void setPaused(std::atomic_bool& a_paused) { *paused = a_paused; };
     void setTimer(double& a_timer) { timer = &a_timer; };
+    void setCoords(std::tuple<short, short> a_coords) { coords = a_coords; };
 
 private:
-    WINDOW* board, 
-          * stats;
+    WINDOW* board = nullptr, 
+          * stats = nullptr;
 
-    const std::tuple<short, short> coords;
+    std::tuple<short, short> coords;
     std::shared_ptr<Data> data;
     int* workers, * tasks;
     short * x_part, * y_part;
-    //std::atomic_bool* paused;
     double* timer;
+
+    bool updateLesser = true;
 };

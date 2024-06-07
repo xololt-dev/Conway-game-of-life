@@ -14,10 +14,12 @@
 #include <vector>
 
 void Game::start() {
-    (*data->currentGen.get())(3, 3) = 1;
-    (*data->currentGen.get())(3, 4) = 1;
-    (*data->currentGen.get())(3, 5) = 1;
-    // (*data.currentGen.get())(4, 4) = 1;
+    // Input thread
+    std::atomic_char input(' ');
+    std::thread inputThread = std::thread(&Game::inputFunction, this, std::ref(input));
+    inputThread.detach();
+
+    loadGeneration(std::ref(input));
 
     // Setup
     sync->pauseThreads = true;
@@ -36,11 +38,6 @@ void Game::start() {
 
     std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
 
-    // Input thread
-    std::atomic_char input(' ');
-    std::thread inputThread = std::thread(&Game::inputFunction, this, std::ref(input));
-    inputThread.detach();
-
     bool addThread = false;
     bool deleteThread = false;
 
@@ -49,7 +46,6 @@ void Game::start() {
     int workersAmount = workers.size();
     int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
 
-    graphics->setData(data);
     graphics->setWorkers(workersAmount);
     graphics->setTasks(tasksAmount);
     graphics->setXPart(x_part);
@@ -57,10 +53,53 @@ void Game::start() {
     //graphics->setPaused(sync->pauseThreads);
     graphics->setTimer(lastIteration);
 
+    graphics->fullGameRender();
+
     // Loop
     while (true) {
         sync->pauseThreads = false;
+        sync->cvTasks.notify_one();
 
+        switch (input) {
+            // Quit
+            case 'q':
+                goto exit_loop;
+            
+            // Add thread
+            case '+':
+            case '=':
+                if (deleteThread)
+                    deleteThread = false;
+                else
+                    addThread = true;
+
+                input = ' ';
+                break;
+            
+            // Delete thread
+            case '-':
+                if (addThread)
+                    addThread = false;
+                else
+                    deleteThread = true;
+                
+                input = ' ';
+            
+            // Pause threads
+            case 'p':
+                sync->pauseThreads = true;
+                break;
+
+            // Resume threads
+            case 'r':
+                sync->pauseThreads = false;
+                break;
+
+            default:
+                break; 
+        }
+
+        /*
         // Quit
         if (input == 'q') {
             break;
@@ -92,9 +131,10 @@ void Game::start() {
             sync->pauseThreads = false;
             input = ' ';
         }
+        */
 
         std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
-        sync->cvTasks.wait(uniqueLock, [this]{ return !sync->queueInUse; });
+        sync->noTasks.wait(uniqueLock);
 
         if (!sync->queueInUse) {
             sync->queueInUse = true;
@@ -122,6 +162,8 @@ void Game::start() {
                     y_part = std::get<2>(tempTuple);
 
                     workersAmount = workers.size();
+                    
+                    graphics->renderLesserStats();
                 }
                 else if (addThread) {
                     addWorker();
@@ -132,6 +174,8 @@ void Game::start() {
                     y_part = std::get<2>(tempTuple);
                     
                     workersAmount = workers.size();
+                    
+                    graphics->renderLesserStats();
                 }
                 deleteThread = false;
                 addThread = false;
@@ -158,10 +202,9 @@ void Game::start() {
 
         // Refresh display data
         graphics->renderStats();
-
-        uniqueLock.unlock();
-        sync->cvTasks.notify_all();
     }
+
+    exit_loop:
 
     sync->stopThreads = true;
     sync->pauseThreads = true;
@@ -223,4 +266,55 @@ void Game::createNewTasks(const std::tuple<short, short>& a_coords, const short&
 void Game::inputFunction(std::atomic_char& a_char) {
     while (!sync->stopThreads)
         a_char = getch();
+}
+
+void Game::loadGeneration(std::atomic_char& a_input) {
+    graphics->setData(data);
+    graphics->clearAll();
+    bool loadedData = false;
+    
+    while (!loadedData) {
+        graphics->renderLoadBoard();
+
+        switch (a_input) {
+            // Quit
+            case char(27):
+                (*data->currentGen.get())(3, 0) = 1;
+                (*data->currentGen.get())(3, 1) = 1;
+                (*data->currentGen.get())(3, 2) = 1;
+                loadedData = true;
+                break;
+
+            // Backspace
+            case char(8):
+            case char(127):
+                if (data->pathToFile.length())
+                    data->pathToFile.pop_back();
+                
+                break;
+
+            // Enter
+            case '\n':
+            case '\r':
+                loadedData = true;
+                if (!data->loadData())
+                    return;
+                break;
+
+            default:
+                if (a_input >= 32 and a_input < 127) {
+                    if (data->pathToFile != "") 
+                        data->pathToFile.push_back(a_input);
+                    else data->pathToFile = a_input;
+                }
+
+                break;
+        }
+
+        a_input = char(128);
+    }
+
+    graphics->clearAll();
+    a_input = ' ';
+    graphics->setCoords(data->currentGen->dimensions());
 }
