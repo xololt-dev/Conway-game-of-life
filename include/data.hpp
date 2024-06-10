@@ -1,7 +1,5 @@
 #pragma once
 
-#include <fstream>
-#include <ios>
 #include <memory>
 #include <queue>
 #include <string>
@@ -11,12 +9,30 @@
 #include "matrix.hpp"
 #include "task.hpp"
 
+enum ObjectType {
+    point = 0,
+    glider = 1,
+    lwss = 2,
+    hwss = 3,
+    toad = 4,
+    beacon = 5,
+    penta_decatlon = 6,
+    block = 7,
+    beehive = 8,
+    loaf = 9
+};
+
 struct Data {
-    unsigned long long tick = 0;
     std::string pathToFile;
+
+    unsigned long long tick = 0;
     std::shared_ptr<Matrix<short>> currentGen,
                                    nextGen;
     std::queue<Task> tasks;
+
+    std::tuple<short, short> cursorPlacement;
+    std::vector<std::tuple<short, short>> paintPoints;
+    ObjectType placementType = point;
 
     Data() {}
 
@@ -27,38 +43,9 @@ struct Data {
         tasks = a_data.tasks;
     }
 
-    bool loadData() {
-        std::fstream file;
-        file.open(pathToFile, std::ios::in);
+    std::string getTypeString();
 
-        if (!file.good())
-            return false;
+    bool loadData();
 
-        int in = 0;
-        int row, column;
-        std::vector<short> temp;
-        if (file.is_open()) {
-            file >> row;
-            file >> column;
-
-            currentGen = std::make_shared<Matrix<short>>(row, column);
-            nextGen = std::make_shared<Matrix<short>>(row, column);
-
-            while (!file.eof()) {
-                file >> in;
-                temp.push_back(in);
-            }
-
-            currentGen->load(temp);
-            
-            return true;
-        }
-        else {
-            (*this->currentGen.get())(2, 0) = 1;
-            (*this->currentGen.get())(2, 1) = 1;
-            (*this->currentGen.get())(2, 2) = 1;
-
-            return false;
-        }
-    }
+    void recalcPlacement(short a_yMoveAxis = 0, short a_xMoveAxis = 0);
 };

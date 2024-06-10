@@ -21,6 +21,7 @@ public:
     void inputFunction(std::atomic_char& a_char);
     void addWorker();
     void deleteWorker();
+    void placeObject();
 
     std::tuple<int, short, short> getTasksSize();
     void createNewTasks(const std::tuple<short, short>& a_coords, const short& a_xPart, const short& a_yPart);

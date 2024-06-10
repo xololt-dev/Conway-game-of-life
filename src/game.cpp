@@ -1,4 +1,5 @@
 #include "game.hpp"
+#include "data.hpp"
 #include "task.hpp"
 #include "worker.hpp"
 
@@ -6,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <memory>
 #include <ncurses.h>
 #include <mutex>
@@ -19,16 +21,10 @@ void Game::start() {
     std::thread inputThread = std::thread(&Game::inputFunction, this, std::ref(input));
     inputThread.detach();
 
-    loadGeneration(std::ref(input));
-
     // Setup
+    loadGeneration(std::ref(input));
     sync->pauseThreads = true;
 
-    // Detaching thread(s)
-    sync->workDone.push_back(0);
-    workers.push_back(Worker(workers.size(), data, sync));    
-    workers.back().detach();
-    
     // Task creation
     std::tuple<short, short> coords = data->currentGen->dimensions();
     short x_part = std::get<0>(coords);
@@ -36,10 +32,16 @@ void Game::start() {
 
     createNewTasks(coords, x_part, y_part);
 
+    // Detaching thread(s)
+    sync->workDone.push_back(0);
+    workers.push_back(Worker(workers.size(), data, sync));    
+    workers.back().detach();
+
     std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
 
     bool addThread = false;
     bool deleteThread = false;
+    bool addObject = false;
 
     int currentTasksAmount = 0;
     double lastIteration = 0.0;
@@ -95,50 +97,51 @@ void Game::start() {
                 sync->pauseThreads = false;
                 break;
 
+            // Move object
+            case 'w':
+            case 'a':
+            case 's':
+            case 'd': {
+                short yMoveAxis = (input == 's') - (input == 'w');
+                short xMoveAxis = (input == 'd') - (input == 'a');
+
+                data->recalcPlacement(yMoveAxis, xMoveAxis);
+            }
+                input = ' ';
+
+                break;
+
+            // Insert 'something'
+            case 'i':
+                addObject = true;
+                input = ' ';
+                break;
+
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                data->placementType = ObjectType(int(input) - '0');
+                data->recalcPlacement();
+                input = ' ';
+                break;
+
             default:
                 break; 
         }
 
-        /*
-        // Quit
-        if (input == 'q') {
-            break;
-        }
-        // Add thread
-        else if (input == '+' or input == '=') {
-            if (deleteThread)
-                deleteThread = false;
-            else
-                addThread = true;
-
-            input = ' ';
-        }
-        // Delete thread
-        else if (input == '-') {
-            if (addThread)
-                addThread = false;
-            else
-                deleteThread = true;
-            
-            input = ' ';
-        }
-        // Pause threads
-        else if (input == 'p') {
-            sync->pauseThreads = true;
-        }
-        // Resume threads
-        else if (input == 'r') {
-            sync->pauseThreads = false;
-            input = ' ';
-        }
-        */
-
         std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
-        sync->noTasks.wait(uniqueLock);
+        if (sync->noTasks.wait_for(uniqueLock, std::chrono::microseconds(10)) == std::cv_status::timeout)
+            continue;
 
-        if (!sync->queueInUse) {
-            sync->queueInUse = true;
-
+        if (!sync->pauseThreads) {
+            // Is this needed? Assumed yes, might show up at bigger gen sizes
             bool canContinue = false;
             for (short& done : sync->workDone) {
                 if (done == true) 
@@ -150,9 +153,7 @@ void Game::start() {
                 }
             }
 
-            if (data->tasks.empty() && canContinue && !sync->pauseThreads) {
-                sync->pauseThreads = true;
-
+            if (data->tasks.empty() && canContinue) {
                 if (deleteThread) {
                     deleteWorker();
 
@@ -180,6 +181,11 @@ void Game::start() {
                 deleteThread = false;
                 addThread = false;
 
+                if (addObject) {
+                    placeObject();
+                    addObject = false;
+                }
+
                 lastIteration = double(std::chrono::duration<double>(std::chrono::system_clock::now() - start).count());
 
                 start = std::chrono::system_clock::now();
@@ -196,8 +202,6 @@ void Game::start() {
                 data->tick++;
             }
             else currentTasksAmount = data->tasks.size();
-
-            sync->queueInUse = false;
         }
 
         // Refresh display data
@@ -227,6 +231,13 @@ void Game::deleteWorker() {
     // Is it even safe bro? Does it even do it's job lmao?
     workers.pop_back();
     sync->workDone.pop_back();
+}
+
+void Game::placeObject() {
+    Matrix<short>& matrix = *data->nextGen.get();
+    
+    for (std::tuple<short, short>& t : data->paintPoints)
+        matrix(std::get<0>(t) - 1, std::get<1>(t) - 1) = 1;
 }
 
 std::tuple<int, short, short> Game::getTasksSize() {

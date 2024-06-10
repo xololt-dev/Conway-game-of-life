@@ -4,7 +4,6 @@
 
 #include <memory>
 #include <ncurses.h>
-#include <locale>
 #include <tuple>
 
 class Graphics {

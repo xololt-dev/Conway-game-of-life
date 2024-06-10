@@ -20,7 +20,7 @@ public:
 
 private:
     // technically should be const int, but then seems to be more sensitive to worker deletions/insertions?
-    int id;
+    const int id;
     std::thread thread;
 
     std::shared_ptr<Data> data;
