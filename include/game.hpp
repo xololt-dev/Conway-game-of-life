@@ -19,6 +19,7 @@ public:
     void loadGeneration(std::atomic_char& a_input);
 
     void inputFunction(std::atomic_char& a_char);
+    bool handleInput(std::atomic_char& a_input, bool& a_deleteThread, bool& a_addThread, bool& a_addObject);
     void addWorker();
     void deleteWorker();
     void placeObject();

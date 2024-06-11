@@ -22,6 +22,7 @@ void Worker::task() {
             }
             else {
                 sync->workDone[id] = 1;
+                // sync->cvTasks.notify_one();
                 sync->noTasks.notify_one();
                 continue;
             }
@@ -30,14 +31,16 @@ void Worker::task() {
 
             // Do work here - seperate function?
             if (taskExists) {
+                Matrix<short>& matrixCurr = *data->currentGen.get();
+
                 for (short x = task.coordinates[0]; 
                     x <= task.coordinates[2]; x++) {
                     int left = x - 1;
                     int right = x + 1;
 
                     if (x == 0)
-                        left = std::get<0>(task.currentGen->dimensions()) - 1;
-                    else if (x == std::get<0>(task.currentGen->dimensions()) - 1)
+                        left = std::get<0>(matrixCurr.dimensions()) - 1;
+                    else if (x == std::get<0>(matrixCurr.dimensions()) - 1)
                         right = 0;
 
                     for (short y = task.coordinates[1];
@@ -47,36 +50,33 @@ void Worker::task() {
                         int top = y - 1;
 
                         if (y == 0)
-                            top = std::get<1>(task.currentGen->dimensions()) - 1;
-                        else if (y == std::get<1>(task.currentGen->dimensions()) - 1)
+                            top = std::get<1>(matrixCurr.dimensions()) - 1;
+                        else if (y == std::get<1>(matrixCurr.dimensions()) - 1)
                             bottom = 0;
 
                         // Count alive neighbours
-                        short aliveCount = (*data->currentGen.get())(left, top);
-                        aliveCount += (*data->currentGen.get())(x, top);
-                        aliveCount += (*data->currentGen.get())(right, top);
+                        Matrix<short>& matrixNext = *data->nextGen.get();
+                        unsigned short aliveCount = matrixCurr(left, top);
+                        aliveCount += matrixCurr(x, top);
+                        aliveCount += matrixCurr(right, top);
 
-                        aliveCount += (*data->currentGen.get())(left, y);
-                        aliveCount += (*data->currentGen.get())(right, y);
+                        aliveCount += matrixCurr(left, y);
+                        aliveCount += matrixCurr(right, y);
 
-                        aliveCount += (*data->currentGen.get())(left, bottom);
-                        aliveCount += (*data->currentGen.get())(x, bottom);
-                        aliveCount += (*data->currentGen.get())(right, bottom);
+                        aliveCount += matrixCurr(left, bottom);
+                        aliveCount += matrixCurr(x, bottom);
+                        aliveCount += matrixCurr(right, bottom);
 
                         // If alive
-                        if ((*data->currentGen.get())(x, y) == 1) {
-                            if (aliveCount < 2)
-                                (*data->nextGen.get())(x,y) = 0;
-                            else if (aliveCount > 3)
-                                (*data->nextGen.get())(x,y) = 0;
+                        if (matrixCurr(x, y) == 1) {
+                            if (aliveCount < 2 || aliveCount > 3)
+                                matrixNext(x,y) = 0;
                             else
-                                (*data->nextGen.get())(x,y) = 1;
+                                matrixNext(x,y) = 1;
                         }
                         // If dead
-                        else {
-                            if (aliveCount == 3)
-                                (*data->nextGen.get())(x,y) = 1;
-                        }
+                        else if (aliveCount == 3)
+                            matrixNext(x,y) = 1;
                     }
                 }
             }

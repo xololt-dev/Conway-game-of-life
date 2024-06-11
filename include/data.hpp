@@ -47,5 +47,5 @@ struct Data {
 
     bool loadData();
 
-    void recalcPlacement(short a_yMoveAxis = 0, short a_xMoveAxis = 0);
+    void recalcPlacement(const short a_yMoveAxis = 0, const short a_xMoveAxis = 0);
 };

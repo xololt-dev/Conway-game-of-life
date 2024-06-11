@@ -73,7 +73,7 @@ bool Data::loadData() {
     }
 }
 
-void Data::recalcPlacement(short a_yMoveAxis, short a_xMoveAxis) {
+void Data::recalcPlacement(const short a_yMoveAxis, const short a_xMoveAxis) {
     // Wrap around
     if (a_yMoveAxis < 0 && std::get<0>(cursorPlacement) == 0) {
         std::get<0>(cursorPlacement) = std::get<0>(currentGen->dimensions()) - 1;

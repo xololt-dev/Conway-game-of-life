@@ -54,7 +54,6 @@ public:
     void setTasks(int& a_tasks) { tasks = &a_tasks; };
     void setXPart(short& a_part) { x_part = &a_part; };
     void setYPart(short& a_part) { y_part = &a_part; };
-    //void setPaused(std::atomic_bool& a_paused) { *paused = a_paused; };
     void setTimer(double& a_timer) { timer = &a_timer; };
     void setCoords(std::tuple<short, short> a_coords) { coords = a_coords; };
 

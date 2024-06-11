@@ -1,7 +1,7 @@
 #include "game.hpp"
 
 int main(int argc, const char * argv[]) {
-    Game game(32);
+    Game game(48, 192);
     game.start();
     return 0;
 }

@@ -10,7 +10,7 @@ void Graphics::fullGameRender() {
         delwin(stats);
 
     board = newwin(std::get<0>(coords) + 2, std::get<1>(coords) + 2, 0, 0);
-    stats = newwin(std::get<0>(coords) + 2, 28, 0, std::get<0>(coords) + 2);
+    stats = newwin(std::get<0>(coords) + 2, 28, 0, std::get<1>(coords) + 2);
 
     refresh();
 
@@ -60,16 +60,18 @@ void Graphics::renderLesserStats() {
 }
 
 void Graphics::renderBoard() {
+    werase(board);
     box(board, 0, 0);
 
     // move and print in window
     mvwprintw(board, 0, 1, "Conway's game of life");
+    Matrix<short>& matrix = *data->currentGen.get();
 
     // Display
     for (int x = 0; x < std::get<0>(coords); x++) {
         for (int y = 0; y < std::get<1>(coords); y++) {
-            mvwprintw(board, x + 1, y + 1, "%s", 
-                (*data->currentGen.get())(x, y) ? "@" : " ");
+            if (matrix(x, y))
+                mvwprintw(board, x + 1, y + 1, "@");
         }
     }
 

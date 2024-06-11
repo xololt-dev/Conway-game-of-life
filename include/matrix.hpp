@@ -44,6 +44,6 @@ private:
     size_type const columns;
 
     inline int index(size_type const a_row, size_type const a_column) {
-        return a_row + (columns * a_column);
+        return a_row + (rows * a_column);
     }
 };

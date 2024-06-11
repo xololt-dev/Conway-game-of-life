@@ -43,7 +43,6 @@ void Game::start() {
     bool deleteThread = false;
     bool addObject = false;
 
-    int currentTasksAmount = 0;
     double lastIteration = 0.0;
     int workersAmount = workers.size();
     int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
@@ -52,7 +51,6 @@ void Game::start() {
     graphics->setTasks(tasksAmount);
     graphics->setXPart(x_part);
     graphics->setYPart(y_part);
-    //graphics->setPaused(sync->pauseThreads);
     graphics->setTimer(lastIteration);
 
     graphics->fullGameRender();
@@ -62,79 +60,8 @@ void Game::start() {
         sync->pauseThreads = false;
         sync->cvTasks.notify_one();
 
-        switch (input) {
-            // Quit
-            case 'q':
-                goto exit_loop;
-            
-            // Add thread
-            case '+':
-            case '=':
-                if (deleteThread)
-                    deleteThread = false;
-                else
-                    addThread = true;
-
-                input = ' ';
-                break;
-            
-            // Delete thread
-            case '-':
-                if (addThread)
-                    addThread = false;
-                else
-                    deleteThread = true;
-                
-                input = ' ';
-            
-            // Pause threads
-            case 'p':
-                sync->pauseThreads = true;
-                break;
-
-            // Resume threads
-            case 'r':
-                sync->pauseThreads = false;
-                break;
-
-            // Move object
-            case 'w':
-            case 'a':
-            case 's':
-            case 'd': {
-                short yMoveAxis = (input == 's') - (input == 'w');
-                short xMoveAxis = (input == 'd') - (input == 'a');
-
-                data->recalcPlacement(yMoveAxis, xMoveAxis);
-            }
-                input = ' ';
-
-                break;
-
-            // Insert 'something'
-            case 'i':
-                addObject = true;
-                input = ' ';
-                break;
-
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                data->placementType = ObjectType(int(input) - '0');
-                data->recalcPlacement();
-                input = ' ';
-                break;
-
-            default:
-                break; 
-        }
+        if (handleInput(input, deleteThread, addThread, addObject))
+            goto exit_loop;
 
         std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
         if (sync->noTasks.wait_for(uniqueLock, std::chrono::microseconds(10)) == std::cv_status::timeout)
@@ -144,7 +71,7 @@ void Game::start() {
             // Is this needed? Assumed yes, might show up at bigger gen sizes
             bool canContinue = false;
             for (short& done : sync->workDone) {
-                if (done == true) 
+                if (done) 
                     canContinue = true;
                 
                 else {
@@ -153,7 +80,7 @@ void Game::start() {
                 }
             }
 
-            if (data->tasks.empty() && canContinue) {
+            if (canContinue) {
                 if (deleteThread) {
                     deleteWorker();
 
@@ -190,6 +117,8 @@ void Game::start() {
 
                 start = std::chrono::system_clock::now();
 
+                data->tick++;
+
                 // Swap 
                 data->currentGen->load(data->nextGen->board());
 
@@ -198,10 +127,7 @@ void Game::start() {
 
                 // Display
                 graphics->renderBoard();
-
-                data->tick++;
             }
-            else currentTasksAmount = data->tasks.size();
         }
 
         // Refresh display data
@@ -241,10 +167,10 @@ void Game::placeObject() {
 }
 
 std::tuple<int, short, short> Game::getTasksSize() {
-    int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
+    unsigned int tasksAmount = std::pow(2, std::ceil(log2(workers.size())));
 
-    short x_part = std::get<0>(data->currentGen->dimensions());
-    short y_part = std::get<1>(data->currentGen->dimensions());
+    unsigned short x_part = std::get<0>(data->currentGen->dimensions());
+    unsigned short y_part = std::get<1>(data->currentGen->dimensions());
 
     if (tasksAmount > 1) {
         bool x_bool = true;
@@ -266,10 +192,8 @@ void Game::createNewTasks(const std::tuple<short, short>& a_coords, const short&
 
     for (short x = 0; x < std::get<0>(a_coords); x += a_xPart) {
         for (short y = 0; y < std::get<1>(a_coords); y += a_yPart) {
-            data->tasks.push(Task(data->currentGen, 
-                data->nextGen, std::array<short, 4>{x, y, 
-                static_cast<short>(x + a_xPart - 1), static_cast<short>(y + a_yPart - 1)},
-                id++));
+            data->tasks.push(Task(std::array<short, 4>{x, y, 
+                static_cast<short>(x + a_xPart - 1), static_cast<short>(y + a_yPart - 1)}));
         }
     }
 }
@@ -277,6 +201,84 @@ void Game::createNewTasks(const std::tuple<short, short>& a_coords, const short&
 void Game::inputFunction(std::atomic_char& a_char) {
     while (!sync->stopThreads)
         a_char = getch();
+}
+
+bool Game::handleInput(std::atomic_char& a_input, bool& a_deleteThread, bool& a_addThread, bool& a_addObject) {
+    switch (a_input) {
+        // Quit
+        case 'q':
+            return true;
+        
+        // Add thread
+        case '+':
+        case '=':
+            if (a_deleteThread)
+                a_deleteThread = false;
+            else
+                a_addThread = true;
+
+            a_input = ' ';
+            break;
+        
+        // Delete thread
+        case '-':
+            if (a_addThread)
+                a_addThread = false;
+            else
+                a_deleteThread = true;
+            
+            a_input = ' ';
+        
+        // Pause threads
+        case 'p':
+            sync->pauseThreads = true;
+            break;
+
+        // Resume threads
+        case 'r':
+            sync->pauseThreads = false;
+            break;
+
+        // Move object
+        case 'w':
+        case 'a':
+        case 's':
+        case 'd': {
+            short yMoveAxis = (a_input == 's') - (a_input == 'w');
+            short xMoveAxis = (a_input == 'd') - (a_input == 'a');
+
+            data->recalcPlacement(yMoveAxis, xMoveAxis);
+        }
+            a_input = ' ';
+
+            break;
+
+        // Insert 'something'
+        case 'i':
+            a_addObject = true;
+            a_input = ' ';
+            break;
+
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            data->placementType = ObjectType(int(a_input) - '0');
+            data->recalcPlacement();
+            a_input = ' ';
+            break;
+
+        default:
+            break; 
+    }
+
+    return false;
 }
 
 void Game::loadGeneration(std::atomic_char& a_input) {
