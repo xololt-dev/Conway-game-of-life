@@ -23,29 +23,11 @@ public:
         initscr();
         noecho();
         setlocale(LC_ALL, "");
-
-        /*
-
-        board = newwin(std::get<0>(a_coords) + 2, std::get<1>(a_coords) + 2, 0, 0);
-        stats = newwin(std::get<0>(a_coords) + 2, 25, 0, std::get<0>(a_coords) + 2);
-
-        refresh();
-
-        box(board, 0, 0);
-        box(stats, 0, 0);
-        refresh();
-
-        // move and print in window
-        mvwprintw(board, 0, 1, "Conway's game of life");
-        mvwprintw(stats, 0, 1, "Statistics");
-
-        // refreshing the window
-        wrefresh(board);
-        wrefresh(stats);
-        */
     }
 
     ~Graphics() {
+        delwin(board);
+        delwin(stats);
         endwin();
     }
 

@@ -49,6 +49,12 @@ public:
         hintPreAllocate();
     }
 
+    ~Game() {
+        sync->stopThreads = true;
+        sync->pauseThreads = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     void hintPreAllocate() {
         // Try to prealocate memory based on hardware hint
         unsigned int numThreads = std::thread::hardware_concurrency();
