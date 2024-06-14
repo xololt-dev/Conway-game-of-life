@@ -18,8 +18,9 @@ public:
         id(a_id), data(a_data), sync(a_sync) {
     }
 
+    bool failSafe = false;
+
 private:
-    // technically should be const int, but then seems to be more sensitive to worker deletions/insertions?
     const int id;
     std::thread thread;
 

@@ -5,6 +5,9 @@
 void Worker::task() {
     while (!sync->stopThreads) {
         while (!sync->pauseThreads) {
+            if (failSafe)
+                goto end;
+            
             std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
             // W8 for our turn
             sync->cvTasks.wait(uniqueLock);
@@ -85,4 +88,6 @@ void Worker::task() {
         // Sleep
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
+    end:
+    sync->workDone[id] = 1;
 }

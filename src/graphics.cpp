@@ -9,8 +9,10 @@ void Graphics::fullGameRender() {
     if (stats != nullptr)
         delwin(stats);
 
-    board = newwin(std::get<0>(coords) + 2, std::get<1>(coords) + 2, 0, 0);
-    stats = newwin(std::get<0>(coords) + 2, 28, 0, std::get<1>(coords) + 2);
+    // board = newwin(std::get<0>(coords) + 2, std::get<1>(coords) + 2, 0, 0);
+    // stats = newwin(std::get<0>(coords) + 2, 28, 0, std::get<1>(coords) + 2);
+    board = newwin(std::get<0>(coords) + 2, std::get<1>(coords) + 2, 0, 28);
+    stats = newwin(std::get<0>(coords) + 2, 28, 0, 0);
 
     refresh();
 

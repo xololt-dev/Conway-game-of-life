@@ -54,6 +54,8 @@ void Game::start() {
     graphics->setTimer(lastIteration);
 
     graphics->fullGameRender();
+{
+    std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
 
     // Loop
     while (true) {
@@ -63,7 +65,7 @@ void Game::start() {
         if (handleInput(input, deleteThread, addThread, addObject))
             goto exit_loop;
 
-        std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
+        //std::unique_lock<std::mutex> uniqueLock(sync->tasksMutex);
         if (sync->noTasks.wait_for(uniqueLock, std::chrono::microseconds(10)) == std::cv_status::timeout)
             continue;
 
@@ -133,11 +135,14 @@ void Game::start() {
         // Refresh display data
         graphics->renderStats();
     }
+}
+    exit_loop:;
 
-    exit_loop:
+    for (Worker& w : workers)
+        w.failSafe = true;
 
-    sync->stopThreads = true;
     sync->pauseThreads = true;
+    sync->stopThreads = true;
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
@@ -154,7 +159,10 @@ void Game::deleteWorker() {
     if (workers.size() <= 1)
         return;
 
-    // Is it even safe bro? Does it even do it's job lmao?
+    workers.end()->failSafe = true;
+    while (sync->workDone[workers.size()] == 1)
+        continue;
+
     workers.pop_back();
     sync->workDone.pop_back();
 }
